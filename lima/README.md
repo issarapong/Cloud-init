@@ -1,3 +1,8 @@
+## prepare disk
+```
+imactl disk create wp-data --size 20GiB
+INFO[0000] Creating qcow2 disk "wp-data" with size 20GiB 
+```
 ## start lima
 ```
 limactl start --name=wp-prod lima.yaml
