@@ -1,0 +1,52 @@
+vmType: "qemu"
+arch: "x86_64"
+
+images:
+  - location: "/debian-13-generic-amd64.qcow2"
+    arch: "x86_64"
+
+cpus: 4
+memory: "8GiB"
+disk: "40GiB"
+
+# Guest login user — pinned to match prod: cloud-init.yaml creates the same
+# `deploy` / uid 1000 on the Proxmox VM. Without this, Lima would name the
+# guest user after this Mac's account instead.
+user:
+  name: "deploy"
+  uid: 1000
+  home: "/home/deploy"
+
+# No host mount — the bundle is rsync'd in over SSH by hand (DEPLOY.md),
+# exactly like deploying to a remote Proxmox VM.
+mounts: []
+
+# --- SSH access -------------------------------------------------------
+# Authorise ONLY the dedicated ~/.ssh/lima key — not every ~/.ssh/*.pub.
+# loadDotSSHPubKeys is therefore off; the provision script below appends
+# just lima.pub to the guest user's authorized_keys. (Lima still injects
+# its own management key regardless — that is what `limactl` uses, separate
+# from your personal keys.)
+#
+# Only the PUBLIC key (lima.pub) is ever placed on the VM. The private key
+# ~/.ssh/lima never leaves this Mac. Connect with:
+#   ssh -i ~/.ssh/lima -p 2222 deploy@127.0.0.1
+ssh:
+  loadDotSSHPubKeys: false
+  # Pin the host-side SSH port so the ssh/rsync commands are stable — no
+  # need to look it up each run. Change it if 2222 is already in use.
+  localPort: 2222
+
+provision:
+  # Append ~/.ssh/lima.pub to the guest user's authorized_keys. Runs as the
+  # guest user; idempotent — re-runs are a no-op.
+  - mode: user
+    script: |
+      #!/bin/sh
+      set -eu
+      install -d -m 700 "$HOME/.ssh"
+      touch "$HOME/.ssh/authorized_keys"
+      chmod 600 "$HOME/.ssh/authorized_keys"
+      KEY='ssh-ed25519 [KEY] [EMAIL]'
+      grep -qxF "$KEY" "$HOME/.ssh/authorized_keys" \
+        || printf '%s\n' "$KEY" >> "$HOME/.ssh/authorized_keys"
